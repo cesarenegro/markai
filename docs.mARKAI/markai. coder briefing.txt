@@ -1,0 +1,350 @@
+# mARK.AI – Project Specification
+
+**Version:** 1.0  
+**Target Platform:** macOS 12+  
+**Tech Stack:** Swift, SwiftUI, AppKit (for Share Extensions), JavaScript (WKWebView)  
+**Dependencies:** Down (Markdown → HTML), Mermaid.js (diagram rendering), YAML front‑matter parser
+
+---
+
+## 1. Overview
+
+**mARK.AI** is a lightweight macOS application that lets users:
+
+- Convert any selected text (from web pages, PDFs, Word documents, etc.) into a Markdown file via a right‑click menu.
+- Transform that same text into a reusable **AI skill** for platforms like Gemini (Gems) or Claude (Projects), saved as a structured `.md` file with YAML front‑matter.
+- Open, edit, and preview Markdown files in a clean, distraction‑free editor that renders **Mermaid diagrams** live.
+- Export individual diagrams as SVG or PNG (white background) directly from the preview.
+
+The app is designed with a **“no complex UI”** philosophy: everything is minimal, intuitive, and fast.
+
+---
+
+## 2. User Flows
+
+### 2.1 Right‑Click → Save as Markdown
+1. User selects text in any application (web browser, PDF viewer, Word, etc.).
+2. Right‑clicks → **Services** (or Share menu) → **“Save as Markdown”**.
+3. A system save dialog appears (default name `document.md`, format `.md`).
+4. After saving, mARK.AI **opens the newly created file** in its editor automatically.
+5. The editor shows the raw Markdown source; the user can toggle to preview.
+
+### 2.2 Right‑Click → Save as AI Skill
+1. Same text selection, right‑click → **Services** → **“Save as AI Skill”**.
+2. A small metadata panel appears (app‑modal) asking for:
+   - **Skill Name**
+   - **Short Description**
+   - **Target Platform** (Gemini, Claude, Generic)
+   - *(optional)* Tags (comma‑separated)
+3. User clicks **Save** → system save dialog (default name `<SkillName>.skill.md`).
+4. The file is saved with YAML front‑matter containing the metadata, and the selected text as the body.
+5. mARK.AI opens the file in its editor for review / editing.
+
+### 2.3 Editor Workflow
+- Open any `.md` or `.skill.md` file (by double‑clicking or from the app’s File → Open).
+- Default view: **Source mode** with syntax highlighting.
+- Click **Preview** button (or ⌘⇧P) to toggle the rendered preview.
+- In preview:
+  - Markdown renders normally.
+  - Mermaid code blocks (````mermaid ````) render as diagrams automatically.
+  - Hovering over a diagram reveals a tiny toolbar → export as **SVG** or **PNG**.
+- Editor supports auto‑save, dark/light theme, and minimal formatting shortcuts.
+- A “Distraction‑free” mode (full‑screen, centered text) available via View menu or ⌃⌘F.
+
+---
+
+## 3. Architecture
+
+The project is a single Xcode workspace containing:
+
+- **Main App** (macOS, SwiftUI + AppKit lifecycle) – the Markdown editor.
+- **Share Extension #1**: `MarkdownSaver` – handles “Save as Markdown”.
+- **Share Extension #2**: `AISkillSaver` – handles “Save as AI Skill”.
+- *(Alternative)* A **Service** (`Info.plist` `NSServices` entry) if Share Extensions are not desired, though two separate extensions are cleaner and more modern.
+
+### 3.1 Share Extensions (Right‑Click Actions)
+Each extension:
+- Receives the selected text via `NSExtensionItem` attachments (`public.plain-text`).
+- Presents a minimal UI (or none for Markdown) and invokes `NSSavePanel`.
+- After saving, sends a **distributed notification** (or a URL event) to the main app to open the saved file.
+- Use `NSExtensionActivationRule` to activate only for text.
+
+### 3.2 Main App (Editor)
+- A single‑window SwiftUI app.
+- Uses `DocumentGroup` (if we want to handle `.md` and `.skill.md` documents natively) **or** a custom `WindowGroup` with file opening via `NSDocumentController`. We recommend a custom `WindowGroup` to avoid forcing the document model onto the simple editor, but still support file‑opening.
+- Editor view: `VSplitView` or a tab view controlled by a toggle button.
+- Rendered preview: `WKWebView` wrapped in `NSViewRepresentable`.
+- Syntax highlighting in source mode: custom `TextEditor` with `AttributedString` + a Markdown syntax highlighter (or a third‑party library like `Highlightr`).
+
+---
+
+## 4. UI / UX Specifications
+
+### 4.1 Design Principles
+- **No visible chrome**: No sidebar, no toolbar (except a minimal one for preview toggle and export), no tab bar.
+- **One window at a time**: Focus on the content.
+- **System appearance**: Automatic dark/light mode following macOS settings.
+- **Keyboard‑first**: All common actions accessible via shortcuts.
+
+### 4.2 Editor Layout (Wireframe)
+┌─────────────────────────────────────┐
+│ • File Edit View Help │ (menu bar)
+├─────────────────────────────────────┤
+│ [ Source | Preview ] 🔍 ⚙️ │ (segmented control + actions)
+├─────────────────────────────────────┤
+│ │
+│ # My Document │
+│ ... markdown source ... │ (source mode) OR
+│ │ rendered HTML preview
+│ │
+├─────────────────────────────────────┤
+│ 📄 120 words | auto‑saved │ (status bar)
+└─────────────────────────────────────┘
+- **Segmented control** toggles between “Source” and “Preview”. In preview mode, a small “Edit” button (or the same toggle) returns to source.
+- **Status bar** shows word count, auto‑save indicator, and current file name.
+
+### 4.3 Menu Bar Items
+- File: New, Open, Save (disabled if auto‑save), Export as PDF/HTML, Close.
+- Edit: Undo/Redo, Cut/Copy/Paste, Select All, Find.
+- View: Toggle Preview (⌘⇧P), Distraction‑Free Mode (⌃⌘F), Increase/Decrease Font Size, Reset Zoom.
+- Help: About, Keyboard Shortcuts.
+
+### 4.4 Distraction‑Free Mode
+- Window goes full‑screen with a solid background (or system blur).
+- Text centered, max width ~720px.
+- All UI chrome (status bar, toggle) hides; reappears on mouse movement or Esc.
+
+### 4.5 Diagram Export UI
+- In preview, each Mermaid diagram is wrapped in a `<div class="diagram-container">`.
+- On hover, a small **toolbar** appears at the top‑right corner with two icon buttons:
+  - **SVG** (vector export)
+  - **PNG** (white‑background raster)
+- Click triggers a JavaScript call → `webkit.messageHandlers.exportDiagram.postMessage({svg: ..., format: 'svg'|'png'})`.
+- Swift handler presents `NSSavePanel` and saves the file.
+- No additional native popovers or windows.
+
+---
+
+## 5. Technical Implementation Details
+
+### 5.1 Share Extension “Save as Markdown”
+- Target: `MarkdownSaver.appex`.
+- `ShareViewController` (subclass of `NSViewController`).
+- In `loadView`: retrieve text, immediately call `showSavePanel(text:)`.
+- Save panel: allowed content type `com.unknown.md` (UTType for `.md`).
+- After successful save, open main app with the file URL:
+  ```swift
+  NSWorkspace.shared.open(url)
+
+
+(or use a custom URL scheme like markai://open?path=... if the app is sandboxed).
+
+Complete extension request.
+
+5.2 Share Extension “Save as AI Skill”
+Target: AISkillSaver.appex.
+
+Similar text extraction.
+
+Present a SwiftUI modal (via NSHostingView) to collect metadata.
+
+Build the YAML front‑matter string:
+
+---
+name: "User‑entered name"
+description: "User description"
+platform: gemini|claude|generic
+tags: [tag1, tag2]
+---
+
+{original selected text}
+
+Save via NSSavePanel (default extension .skill.md).
+
+Open in main app.
+
+5.3 Main App – File Opening
+Register for .md and .skill.md file types in Info.plist.
+
+In AppDelegate / WindowGroup, handle onOpenURL (or NSApplicationDelegate.application(_:openFiles:)).
+
+Load file content into a @State string.
+
+Auto‑detect if it’s a skill file: parse YAML front‑matter and optionally display it in a subtle header bar (read‑only) above the editor, or just treat the file normally.
+
+5.4 Markdown Rendering (Preview)
+Convert Markdown source to HTML using Down (or cmark directly) – a Swift library.
+
+Insert Mermaid support by loading a local index.html template:
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>/* base styles */</style>
+    <script src="mermaid.min.js"></script>
+    <script>mermaid.initialize({ startOnLoad: true, theme: 'default' });</script>
+</head>
+<body>
+    {RENDERED_HTML}
+    <script>
+        // after load, add diagram export toolbars
+        document.querySelectorAll('pre.mermaid > svg').forEach(svg => {
+            // wrap in div.diagram-container, add export buttons
+        });
+    </script>
+</body>
+</html>
+
+Bundle mermaid.min.js inside the app (for offline use).
+
+Use a WKWebView with a userContentController that:
+
+Adds WKScriptMessageHandler for exportDiagram messages.
+
+Disables unnecessary features (no navigation, no context menu override except diagram export).
+
+For dark mode, set mermaid.initialize({ theme: 'dark' }) when system appearance is dark. Use prefers-color-scheme media query in HTML.
+
+5.5 Syntax Highlighting in Source Mode
+Use AttributedString with a Markdown syntax highlighter. Libraries like Highlightr can output AttributedString from a Markdown source.
+
+Alternatively, use a NSTextView with a custom NSTextStorageDelegate that highlights patterns (headings, bold, links, code blocks, Mermaid blocks) in real time.
+
+Ensure Mermaid code blocks (```mermaid) are highlighted as a “code” language.
+
+5.6 Diagram Export Implementation
+JavaScript side: when export button clicked, find parent SVG, serialize to string.
+
+Swift handler receives { "svg": "<svg>...</svg>", "format": "svg"|"png" }.
+
+For SVG: write string directly to file.
+
+For PNG:
+
+Create NSImage from SVG data (using NSImage(data:)).
+Draw it onto a new bitmap context filled with white:
+
+
+let image = NSImage(data: svgData)!
+let rep = image.representations.first!
+let size = NSSize(width: rep.pixelsWide, height: rep.pixelsHigh)
+let offscreen = NSImage(size: size, flipped: false) { rect in
+    NSColor.white.setFill()
+    rect.fill()
+    image.draw(in: rect)
+    return true
+}
+let pngData = offscreen.pngData() // NSImage extension that returns PNG data
+
+Save pngData to file.
+Ensure the exported PNG has a solid white background and no transparency.
+
+5.7 Auto‑Save & State
+Use a timer that saves the current text to the file URL every 2 seconds if content changed.
+
+Display “auto‑saved” in status bar.
+
+No manual Save menu item unless user wants to “Save As…”.
+
+5.8 Themes
+By default, app follows system appearance.
+
+Provide a preference to override (light/dark) stored in UserDefaults.
+
+The preview web view must dynamically update its CSS and Mermaid theme when the appearance changes.
+
+6. File Formats
+6.1 Simple Markdown (.md)
+Standard Markdown file.
+
+No restrictions; can contain Mermaid code blocks.
+
+6.2 AI Skill (.skill.md)
+Valid YAML front‑matter between two --- lines.
+
+Example:
+---
+name: "Excel Table Wizard"
+description: "Helps format tables professionally"
+platform: claude
+tags: [productivity, data]
+---
+
+You are an expert in Excel formatting...
+
+
+The body is the system prompt / instructions for the AI.
+
+When opened in mARK.AI, the editor optionally shows the front‑matter in a read‑only info bar above the Markdown content.
+
+7. Dependencies & Setup
+7.1 Required Swift Packages (via SPM)
+Down (or cmark-gfm) – Markdown to HTML conversion.
+
+Yams (or YAMLFramework) – for optional front‑matter parsing (can also be done with simple string parsing).
+
+Highlightr – for syntax highlighting in source mode.
+
+7.2 Bundled Resources
+mermaid.min.js (copy into app bundle).
+
+HTML template (preview.html) with all necessary styles and export scripts.
+
+7.3 Entitlements
+Sandbox: com.apple.security.files.user-selected.read-write (for save dialogs).
+
+Outgoing internet: not needed (Mermaid runs locally).
+
+For Share Extensions: same sandbox entitlement plus appropriate activation rules.
+
+8. Project Structure (Xcode)
+
+
+mARK.AI/
+├── mARK.AI.xcodeproj
+├── mARK.AI/                     (main app)
+│   ├── AppDelegate.swift
+│   ├── ContentView.swift
+│   ├── EditorView.swift
+│   ├── PreviewWebView.swift     (WKWebView wrapper)
+│   ├── MarkdownRenderer.swift   (Down + HTML template)
+│   ├── DiagramExporter.swift
+│   ├── SyntaxHighlighter.swift
+│   ├── Resources/
+│   │   ├── preview.html
+│   │   ├── mermaid.min.js
+│   │   └── styles.css
+│   └── Info.plist
+├── MarkdownSaver/              (Share Extension)
+│   ├── ShareViewController.swift
+│   └── Info.plist
+├── AISkillSaver/               (Share Extension)
+│   ├── SkillMetadataView.swift  (SwiftUI)
+│   ├── ShareViewController.swift
+│   └── Info.plist
+└── Frameworks/                  (if needed)
+
+
+
+9. Keyboard Shortcuts Summary
+Action	Shortcut
+Toggle Preview	⌘⇧P
+Distraction‑Free	⌃⌘F
+Bold	⌘B
+Italic	⌘I
+Insert Link	⌘K
+Increase Font Size	⌘+
+Decrease Font Size	⌘-
+Reset Zoom	⌘0
+10. Final Notes for Developer
+Keep the interface ruthlessly simple. Every additional button must justify itself.
+
+The diagram export should feel like a natural part of the preview; no modal dialogs.
+
+The Share Extensions must be lightweight – their job is to save and hand off to the editor.
+
+
+
+
+
