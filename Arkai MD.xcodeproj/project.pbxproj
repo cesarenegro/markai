@@ -6,6 +6,12 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		D3BE8F292FCD8074003B39E5 /* Down in Frameworks */ = {isa = PBXBuildFile; productRef = D3BE8F282FCD8074003B39E5 /* Down */; };
+		D3BE8F2C2FCD80CE003B39E5 /* Yams in Frameworks */ = {isa = PBXBuildFile; productRef = D3BE8F2B2FCD80CE003B39E5 /* Yams */; };
+		D3BE8F2F2FCD80E9003B39E5 /* Highlightr in Frameworks */ = {isa = PBXBuildFile; productRef = D3BE8F2E2FCD80E9003B39E5 /* Highlightr */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		D380A7D02FCD5E3400C5D6B1 /* Arkai MD.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Arkai MD.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -23,6 +29,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D3BE8F2C2FCD80CE003B39E5 /* Yams in Frameworks */,
+				D3BE8F2F2FCD80E9003B39E5 /* Highlightr in Frameworks */,
+				D3BE8F292FCD8074003B39E5 /* Down in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -65,6 +74,9 @@
 			);
 			name = "Arkai MD";
 			packageProductDependencies = (
+				D3BE8F282FCD8074003B39E5 /* Down */,
+				D3BE8F2B2FCD80CE003B39E5 /* Yams */,
+				D3BE8F2E2FCD80E9003B39E5 /* Highlightr */,
 			);
 			productName = "Arkai MD";
 			productReference = D380A7D02FCD5E3400C5D6B1 /* Arkai MD.app */;
@@ -94,6 +106,11 @@
 			);
 			mainGroup = D380A7C72FCD5E3400C5D6B1;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				D3BE8F272FCD8074003B39E5 /* XCRemoteSwiftPackageReference "Down" */,
+				D3BE8F2A2FCD80CE003B39E5 /* XCRemoteSwiftPackageReference "Yams" */,
+				D3BE8F2D2FCD80E9003B39E5 /* XCRemoteSwiftPackageReference "Highlightr" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = D380A7D12FCD5E3400C5D6B1 /* Products */;
 			projectDirPath = "";
@@ -250,22 +267,36 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "Arkai MD/Arkai MD.entitlements";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = ZVGX4HFZC3;
 				ENABLE_APP_SANDBOX = YES;
+				ENABLE_FILE_ACCESS_DOWNLOADS_FOLDER = readwrite;
 				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = NO;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = NO;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
-				GENERATE_INFOPLIST_FILE = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
+				ENABLE_RESOURCE_ACCESS_CAMERA = NO;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
+				ENABLE_RESOURCE_ACCESS_USB = NO;
+				ENABLE_USER_SELECTED_FILES = readwrite;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Arkai MD/Info.plist";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				MACOSX_DEPLOYMENT_TARGET = 15.6;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.arkitecna.markai;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -284,22 +315,36 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "Arkai MD/Arkai MD.entitlements";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = ZVGX4HFZC3;
 				ENABLE_APP_SANDBOX = YES;
+				ENABLE_FILE_ACCESS_DOWNLOADS_FOLDER = readwrite;
 				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = NO;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = NO;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
-				GENERATE_INFOPLIST_FILE = YES;
+				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
+				ENABLE_RESOURCE_ACCESS_BLUETOOTH = NO;
+				ENABLE_RESOURCE_ACCESS_CALENDARS = NO;
+				ENABLE_RESOURCE_ACCESS_CAMERA = NO;
+				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
+				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
+				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
+				ENABLE_RESOURCE_ACCESS_USB = NO;
+				ENABLE_USER_SELECTED_FILES = readwrite;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Arkai MD/Info.plist";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				MACOSX_DEPLOYMENT_TARGET = 15.6;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.arkitecna.markai;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -335,6 +380,51 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		D3BE8F272FCD8074003B39E5 /* XCRemoteSwiftPackageReference "Down" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/iwasrobbed/Down";
+			requirement = {
+				branch = master;
+				kind = branch;
+			};
+		};
+		D3BE8F2A2FCD80CE003B39E5 /* XCRemoteSwiftPackageReference "Yams" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/jpsim/Yams";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 6.2.2;
+			};
+		};
+		D3BE8F2D2FCD80E9003B39E5 /* XCRemoteSwiftPackageReference "Highlightr" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/raspu/Highlightr";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.3.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		D3BE8F282FCD8074003B39E5 /* Down */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D3BE8F272FCD8074003B39E5 /* XCRemoteSwiftPackageReference "Down" */;
+			productName = Down;
+		};
+		D3BE8F2B2FCD80CE003B39E5 /* Yams */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D3BE8F2A2FCD80CE003B39E5 /* XCRemoteSwiftPackageReference "Yams" */;
+			productName = Yams;
+		};
+		D3BE8F2E2FCD80E9003B39E5 /* Highlightr */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D3BE8F2D2FCD80E9003B39E5 /* XCRemoteSwiftPackageReference "Highlightr" */;
+			productName = Highlightr;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = D380A7C82FCD5E3400C5D6B1 /* Project object */;
 }

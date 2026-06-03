@@ -118,3 +118,34 @@ th { background: var(--code-bg); }
     cursor: pointer;
 }
 .diagram-toolbar button:hover { background: var(--code-bg); }
+
+.detect-wrapper {
+    position: relative;
+    margin: 1em 0;
+}
+.mermaid-detect-toolbar {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+}
+.mermaid-detect-toolbar button {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--fg);
+    font: inherit;
+    font-size: 11px;
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    transition: all 0.15s ease;
+}
+.mermaid-detect-toolbar button:hover:not(:disabled) {
+    background: var(--link);
+    color: white;
+    border-color: var(--link);
+}
+.mermaid-detect-toolbar button:disabled {
+    opacity: 0.6;
+    cursor: default;
+}

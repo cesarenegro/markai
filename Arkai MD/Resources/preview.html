@@ -8,18 +8,61 @@
     <script src="mermaid.min.js"></script>
 </head>
 <body>
-    <div id="content">{{RENDERED_HTML}}</div>
+    <div id="content"></div>
     <script>
         (function () {
+            const MERMAID_KEYWORDS = /^\s*(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram(?:-v2)?|erDiagram|journey|gantt|pie|mindmap|timeline|quadrantChart|requirementDiagram|gitGraph|C4Context|xychart|block-beta)\b/i;
+            const FENCE_OPEN_MERMAID = /^[ \t]*`{3,}\s*mermaid\s*$/i;
+            const FENCE_CLOSE = /^[ \t]*`{3,}\s*$/;
+
             const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            mermaid.initialize({
-                startOnLoad: false,
-                theme: isDark ? 'dark' : 'default',
-                securityLevel: 'strict'
-            });
+            if (typeof mermaid !== 'undefined') {
+                mermaid.initialize({
+                    startOnLoad: false,
+                    theme: isDark ? 'dark' : 'default',
+                    securityLevel: 'strict'
+                });
+            } else {
+                console.warn('mermaid library not loaded');
+            }
+
+            function looksLikeMermaid(text) {
+                const firstLine = (text || '').trim().split('\n')[0] || '';
+                return MERMAID_KEYWORDS.test(firstLine);
+            }
+
+            function extractEmbedded(text) {
+                const lines = text.split('\n');
+                const out = [];
+                let i = 0;
+                while (i < lines.length) {
+                    if (FENCE_OPEN_MERMAID.test(lines[i])) {
+                        const start = i + 1;
+                        let end = lines.length;
+                        for (let j = start; j < lines.length; j++) {
+                            if (FENCE_CLOSE.test(lines[j])) {
+                                end = j;
+                                break;
+                            }
+                        }
+                        const content = lines.slice(start, end).join('\n').replace(/\s+$/, '');
+                        if (content.trim().length > 0) out.push(content);
+                        i = end + 1;
+                    } else {
+                        i++;
+                    }
+                }
+                return out;
+            }
 
             async function renderDiagrams() {
-                const blocks = document.querySelectorAll('pre > code.language-mermaid, code.language-mermaid');
+                if (typeof mermaid === 'undefined') return;
+                await renderExplicit();
+                await offerSmartDetections();
+            }
+
+            async function renderExplicit() {
+                const blocks = document.querySelectorAll('#content pre > code.language-mermaid, #content code.language-mermaid');
                 let i = 0;
                 for (const code of blocks) {
                     const source = code.textContent;
@@ -36,6 +79,73 @@
                         console.error('mermaid render failed', e);
                     }
                 }
+            }
+
+            async function offerSmartDetections() {
+                const codeBlocks = document.querySelectorAll('#content pre > code');
+                console.log('[mARKAI] smart-scan: ' + codeBlocks.length + ' code blocks');
+                codeBlocks.forEach((code, idx) => {
+                    if (code.classList.contains('language-mermaid')) return;
+                    const text = code.textContent;
+                    const embedded = extractEmbedded(text);
+                    const detected = embedded.length === 0 && looksLikeMermaid(text);
+                    console.log('[mARKAI] block #' + idx + ' class="' + (code.className || '') + '" embedded=' + embedded.length + ' detected=' + detected);
+                    if (embedded.length > 0) {
+                        addOfferButton(code, embedded, embedded.length === 1 ? 'embedded' : 'embedded-multi');
+                        return;
+                    }
+                    if (detected) {
+                        addOfferButton(code, [text.trim()], 'detected');
+                    }
+                });
+            }
+
+            function addOfferButton(code, sources, kind) {
+                const pre = code.closest('pre');
+                if (!pre || pre.dataset.mermaidOffered) return;
+                pre.dataset.mermaidOffered = 'true';
+
+                const wrapper = document.createElement('div');
+                wrapper.className = 'detect-wrapper';
+                pre.parentNode.insertBefore(wrapper, pre);
+                wrapper.appendChild(pre);
+
+                const overlay = document.createElement('div');
+                overlay.className = 'mermaid-detect-toolbar';
+
+                const btn = document.createElement('button');
+                const count = sources.length;
+                btn.textContent = count === 1 ? 'Render as diagram' : 'Render ' + count + ' diagrams';
+                btn.title = kind === 'embedded' || kind === 'embedded-multi'
+                    ? 'Detected ' + count + ' mermaid block(s) inside this code'
+                    : 'This code looks like Mermaid syntax';
+                btn.onclick = async () => {
+                    btn.disabled = true;
+                    btn.textContent = 'Rendering…';
+                    let rendered = 0;
+                    for (const src of sources) {
+                        try {
+                            const id = 'mermaid-detect-' + Math.random().toString(36).slice(2, 10);
+                            const { svg } = await mermaid.render(id, src);
+                            const container = document.createElement('div');
+                            container.className = 'diagram-container';
+                            container.innerHTML = svg;
+                            addToolbar(container);
+                            wrapper.parentNode.insertBefore(container, wrapper.nextSibling);
+                            rendered++;
+                        } catch (e) {
+                            console.error('mermaid render failed', e);
+                        }
+                    }
+                    if (rendered === sources.length) {
+                        overlay.remove();
+                    } else {
+                        btn.disabled = false;
+                        btn.textContent = 'Rendered ' + rendered + '/' + sources.length + ' (see console)';
+                    }
+                };
+                overlay.appendChild(btn);
+                wrapper.appendChild(overlay);
             }
 
             function addToolbar(container) {
@@ -55,24 +165,84 @@
                 container.appendChild(toolbar);
             }
 
-            function exportDiagram(container, format) {
+            async function exportDiagram(container, format) {
                 const svg = container.querySelector('svg');
                 if (!svg) return;
-                const serializer = new XMLSerializer();
-                const svgString = serializer.serializeToString(svg);
-                if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.exportDiagram) {
-                    window.webkit.messageHandlers.exportDiagram.postMessage({
-                        svg: svgString,
-                        format: format
-                    });
+                if (format === 'svg') {
+                    const serializer = new XMLSerializer();
+                    const svgString = serializer.serializeToString(svg);
+                    postExport({ format: 'svg', svg: svgString });
+                    return;
+                }
+                if (format === 'png') {
+                    try {
+                        const pngBase64 = await svgToPngBase64(svg);
+                        postExport({ format: 'png', pngBase64: pngBase64 });
+                    } catch (e) {
+                        console.error('PNG export failed', e);
+                    }
                 }
             }
 
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', renderDiagrams);
-            } else {
-                renderDiagrams();
+            function postExport(payload) {
+                if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.exportDiagram) {
+                    window.webkit.messageHandlers.exportDiagram.postMessage(payload);
+                }
             }
+
+            function svgToPngBase64(svgEl) {
+                return new Promise((resolve, reject) => {
+                    const rect = svgEl.getBoundingClientRect();
+                    let width = rect.width;
+                    let height = rect.height;
+                    if (!width || !height) {
+                        const vb = svgEl.viewBox && svgEl.viewBox.baseVal;
+                        if (vb) {
+                            width = vb.width;
+                            height = vb.height;
+                        }
+                    }
+                    if (!width || !height) {
+                        width = 800;
+                        height = 600;
+                    }
+                    const scale = 2;
+                    const targetW = Math.max(Math.ceil(width * scale), 512);
+                    const targetH = Math.max(Math.ceil(height * scale), 256);
+
+                    const serializer = new XMLSerializer();
+                    const svgString = serializer.serializeToString(svgEl);
+                    const svgB64 = btoa(unescape(encodeURIComponent(svgString)));
+                    const dataURL = 'data:image/svg+xml;base64,' + svgB64;
+
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = targetW;
+                        canvas.height = targetH;
+                        const ctx = canvas.getContext('2d');
+                        ctx.fillStyle = 'white';
+                        ctx.fillRect(0, 0, targetW, targetH);
+                        ctx.drawImage(img, 0, 0, targetW, targetH);
+                        try {
+                            const png = canvas.toDataURL('image/png');
+                            const base64 = png.split(',')[1];
+                            resolve(base64);
+                        } catch (e) {
+                            reject(e);
+                        }
+                    };
+                    img.onerror = (e) => reject(new Error('image load failed'));
+                    img.src = dataURL;
+                });
+            }
+
+            window.__renderMarkdown = function (html) {
+                document.getElementById('content').innerHTML = html;
+                renderDiagrams();
+            };
+
+            window.__pageReady = true;
         })();
     </script>
 </body>

@@ -1,6 +1,12 @@
 import Foundation
 import Observation
 
+enum ViewMode: String, CaseIterable, Identifiable {
+    case source = "Source"
+    case preview = "Preview"
+    var id: String { rawValue }
+}
+
 @MainActor
 @Observable
 final class EditorState {
@@ -8,6 +14,7 @@ final class EditorState {
     var fileURL: URL? = nil
     var isDirty: Bool = false
     var lastSavedAt: Date? = nil
+    var viewMode: ViewMode = .source
 
     private var autosaveTask: Task<Void, Never>?
 
@@ -58,6 +65,10 @@ final class EditorState {
         } catch {
             print("[EditorState] save failed for \(url.path): \(error)")
         }
+    }
+
+    func toggleViewMode() {
+        viewMode = (viewMode == .source) ? .preview : .source
     }
 
     func startAutosave() {

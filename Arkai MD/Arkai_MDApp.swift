@@ -22,6 +22,12 @@ struct Arkai_MDApp: App {
                 Button("Save As…") { appDelegate.saveDocumentAs() }
                     .keyboardShortcut("s", modifiers: [.command, .shift])
             }
+            CommandMenu("View") {
+                Button(appDelegate.state.viewMode == .source ? "Show Preview" : "Show Source") {
+                    appDelegate.state.toggleViewMode()
+                }
+                .keyboardShortcut("p", modifiers: [.command, .shift])
+            }
         }
     }
 }
