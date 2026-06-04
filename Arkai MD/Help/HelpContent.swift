@@ -378,6 +378,10 @@ struct HelpContent: View {
         Bullet("No in-app browser")
         Bullet("No accounts, no sign-in")
         Bullet("No fingerprinting")
+
+        H2("Full policies")
+        ExternalLink("Privacy Policy", "https://arkai.dev/app/PPmarkai")
+        ExternalLink("License Agreement (Apple standard EULA)", "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")
     }
 
     // MARK: - Troubleshooting
@@ -432,6 +436,10 @@ struct HelpContent: View {
 
         H2("Report an issue")
         ExternalLink("Open a GitHub issue", "https://github.com/cesarenegro/markai/issues/new")
+
+        H2("Legal")
+        ExternalLink("Privacy Policy", "https://arkai.dev/app/PPmarkai")
+        ExternalLink("License Agreement (Apple standard EULA)", "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")
 
         H2("Acknowledgements")
         P("The credits panel inside **About mARK.AI** (in the application menu) shows the full attribution loaded from the bundled `Credits.html`.")

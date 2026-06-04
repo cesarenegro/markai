@@ -128,6 +128,15 @@ private struct HelpMenuCommands: View {
         Button("Report an Issue…") {
             openExternal("https://github.com/cesarenegro/markai/issues/new")
         }
+
+        Divider()
+
+        Button("Privacy Policy") {
+            openExternal("https://arkai.dev/app/PPmarkai")
+        }
+        Button("License Agreement (EULA)") {
+            openExternal("https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")
+        }
     }
 
     private func openExternal(_ string: String) {

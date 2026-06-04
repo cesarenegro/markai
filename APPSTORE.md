@@ -104,6 +104,28 @@ https://github.com/cesarenegro/markai
 
 ---
 
+## 6.1 App Information → Privacy Policy URL (REQUIRED — Guideline 5.1.1)
+
+```
+https://arkai.dev/app/PPmarkai
+```
+
+> Apple rejects every submission that does not have a working privacy policy URL.
+
+---
+
+## 6.2 App Information → License Agreement (EULA)
+
+Leave the "Custom EULA" field **empty** to use Apple's standard EULA:
+
+```
+https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
+```
+
+The link is also exposed inside the app (Help menu → License Agreement).
+
+---
+
 ## 7. App Information → Marketing URL (optional)
 
 ```
@@ -159,6 +181,11 @@ THIRD-PARTY LIBRARIES (all MIT licensed, attributed in About → Credits):
 
 NO TRACKING
 No analytics SDK, no third-party telemetry, no anonymous ping, no in-app browsers, no fingerprinting.
+
+LEGAL
+Privacy Policy: https://arkai.dev/app/PPmarkai
+EULA: Apple standard (https://www.apple.com/legal/internet-services/itunes/dev/stdeula/)
+Both links are also accessible from the Help menu inside the app.
 
 How to test "Enhance with AI": you can use your own Claude API key from console.anthropic.com, or skip this feature — all other functionality works without it.
 ```
