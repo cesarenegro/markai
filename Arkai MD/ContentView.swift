@@ -1,7 +1,11 @@
 import SwiftUI
 
 #Preview {
-    EditorView()
-        .environment(EditorState())
-        .frame(width: 700, height: 500)
+    EditorView(
+        controller: EditorController(),
+        onSave: {},
+        onMakeSkill: {}
+    )
+    .environment(EditorState())
+    .frame(width: 700, height: 500)
 }

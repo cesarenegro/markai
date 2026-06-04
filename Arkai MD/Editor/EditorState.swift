@@ -15,6 +15,8 @@ final class EditorState {
     var isDirty: Bool = false
     var lastSavedAt: Date? = nil
     var viewMode: ViewMode = .source
+    var showFormatBar: Bool = true
+    var showCreateSkillSheet: Bool = false
 
     private var autosaveTask: Task<Void, Never>?
 

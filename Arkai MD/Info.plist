@@ -25,7 +25,9 @@
     <key>LSMinimumSystemVersion</key>
     <string>$(MACOSX_DEPLOYMENT_TARGET)</string>
     <key>NSHumanReadableCopyright</key>
-    <string></string>
+    <string>© 2026 Arkitecna. All rights reserved.</string>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
     <key>CFBundleURLTypes</key>
@@ -50,6 +52,69 @@
             <string>Default</string>
             <key>LSItemContentTypes</key>
             <array>
+                <string>net.daringfireball.markdown</string>
+                <string>com.arkitecna.markai.skill</string>
+            </array>
+        </dict>
+    </array>
+    <key>NSServices</key>
+    <array>
+        <dict>
+            <key>NSMenuItem</key>
+            <dict>
+                <key>default</key>
+                <string>mARK.AI: New Markdown from Selection</string>
+            </dict>
+            <key>NSMessage</key>
+            <string>serviceNewMarkdownFromSelection</string>
+            <key>NSPortName</key>
+            <string>Arkai MD</string>
+            <key>NSRequiredContext</key>
+            <dict>
+                <key>NSTextContent</key>
+                <string>UTF8PlainText</string>
+            </dict>
+            <key>NSSendTypes</key>
+            <array>
+                <string>public.utf8-plain-text</string>
+                <string>NSStringPboardType</string>
+            </array>
+        </dict>
+        <dict>
+            <key>NSMenuItem</key>
+            <dict>
+                <key>default</key>
+                <string>mARK.AI: Make Agent Skill from Selection</string>
+            </dict>
+            <key>NSMessage</key>
+            <string>serviceMakeSkillFromSelection</string>
+            <key>NSPortName</key>
+            <string>Arkai MD</string>
+            <key>NSRequiredContext</key>
+            <dict>
+                <key>NSTextContent</key>
+                <string>UTF8PlainText</string>
+            </dict>
+            <key>NSSendTypes</key>
+            <array>
+                <string>public.utf8-plain-text</string>
+                <string>NSStringPboardType</string>
+            </array>
+        </dict>
+        <dict>
+            <key>NSMenuItem</key>
+            <dict>
+                <key>default</key>
+                <string>mARK.AI: Make Agent Skill from File</string>
+            </dict>
+            <key>NSMessage</key>
+            <string>serviceMakeSkillFromFile</string>
+            <key>NSPortName</key>
+            <string>Arkai MD</string>
+            <key>NSSendFileTypes</key>
+            <array>
+                <string>public.plain-text</string>
+                <string>public.text</string>
                 <string>net.daringfireball.markdown</string>
                 <string>com.arkitecna.markai.skill</string>
             </array>
