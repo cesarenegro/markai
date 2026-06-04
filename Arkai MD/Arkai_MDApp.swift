@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 @main
@@ -92,10 +93,45 @@ struct Arkai_MDApp: App {
                 }
                 .keyboardShortcut("b", modifiers: [.command, .option])
             }
+
+            CommandGroup(replacing: .help) {
+                HelpMenuCommands()
+            }
         }
+
+        Window("mARK.AI Help", id: "help") {
+            HelpView()
+        }
+        .defaultSize(width: 980, height: 640)
+        .defaultPosition(.center)
 
         Settings {
             SettingsView()
         }
+    }
+}
+
+private struct HelpMenuCommands: View {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Button("mARK.AI Help") {
+            openWindow(id: "help")
+        }
+        .keyboardShortcut("?", modifiers: .command)
+
+        Divider()
+
+        Button("mARK.AI on GitHub") {
+            openExternal("https://github.com/cesarenegro/markai")
+        }
+        Button("Report an Issue…") {
+            openExternal("https://github.com/cesarenegro/markai/issues/new")
+        }
+    }
+
+    private func openExternal(_ string: String) {
+        guard let url = URL(string: string) else { return }
+        NSWorkspace.shared.open(url)
     }
 }

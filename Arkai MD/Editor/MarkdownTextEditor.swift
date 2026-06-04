@@ -54,18 +54,27 @@ struct MarkdownTextEditor: NSViewRepresentable {
             scrollView.drawsBackground = false
         }
 
-        if let fg = theme.foregroundNSColor {
-            textView.textColor = fg
-            textView.insertionPointColor = theme.accentNSColor ?? fg
-            let selBg = fg.withAlphaComponent(0.25)
-            textView.selectedTextAttributes = [
-                .backgroundColor: selBg,
-                .foregroundColor: fg
-            ]
-        } else {
-            textView.textColor = nil
-            textView.insertionPointColor = NSColor.textColor
-            textView.selectedTextAttributes = [:]
+        let font = textView.font ?? NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+        let fg = theme.foregroundNSColor ?? NSColor.textColor
+        let caret = theme.accentNSColor ?? fg
+
+        textView.textColor = theme.foregroundNSColor
+        textView.insertionPointColor = caret
+        textView.selectedTextAttributes = [
+            .backgroundColor: fg.withAlphaComponent(0.25),
+            .foregroundColor: fg
+        ]
+        textView.typingAttributes = [
+            .foregroundColor: fg,
+            .font: font
+        ]
+
+        if let storage = textView.textStorage, storage.length > 0 {
+            let fullRange = NSRange(location: 0, length: storage.length)
+            storage.beginEditing()
+            storage.addAttribute(.foregroundColor, value: fg, range: fullRange)
+            storage.addAttribute(.font, value: font, range: fullRange)
+            storage.endEditing()
         }
     }
 
