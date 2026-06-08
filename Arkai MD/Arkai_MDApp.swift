@@ -7,13 +7,14 @@ struct Arkai_MDApp: App {
 
     var body: some Scene {
         WindowGroup {
-            EditorView(
+            WorkspaceView(
                 controller: appDelegate.editor,
                 onSave: { appDelegate.saveDocument() },
                 onMakeSkill: { appDelegate.state.showCreateSkillSheet = true }
             )
-            .frame(minWidth: 600, minHeight: 400)
+            .frame(minWidth: 900, minHeight: 520)
             .environment(appDelegate.state)
+            .environment(appDelegate.vault)
         }
         .windowToolbarStyle(.unified(showsTitle: true))
         .commands {
@@ -22,6 +23,8 @@ struct Arkai_MDApp: App {
                     .keyboardShortcut("n", modifiers: .command)
                 Button("Open…") { appDelegate.openDocument() }
                     .keyboardShortcut("o", modifiers: .command)
+                Button("Open Vault…") { appDelegate.vault.openVaultPanel() }
+                    .keyboardShortcut("v", modifiers: [.command, .shift])
             }
             CommandGroup(replacing: .saveItem) {
                 Button("Save") { appDelegate.saveDocument() }
@@ -87,6 +90,13 @@ struct Arkai_MDApp: App {
                     appDelegate.state.toggleViewMode()
                 }
                 .keyboardShortcut("p", modifiers: [.command, .shift])
+
+                Button("Show Graph") {
+                    appDelegate.state.showGraphSheet = true
+                }
+                .keyboardShortcut("g", modifiers: [.command, .shift])
+
+                Divider()
 
                 Button(appDelegate.state.showFormatBar ? "Hide Format Bar" : "Show Format Bar") {
                     appDelegate.state.showFormatBar.toggle()

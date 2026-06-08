@@ -46,6 +46,13 @@ struct EditorView: View {
         .sheet(isPresented: $state.showCreateSkillSheet) {
             CreateSkillView(initial: SkillBuilder.extract(from: state.content))
         }
+        .alert("File Error", isPresented: $state.showIOErrorAlert) {
+            Button("OK", role: .cancel) {
+                state.lastIOErrorMessage = nil
+            }
+        } message: {
+            Text(state.lastIOErrorMessage ?? "")
+        }
     }
 }
 
@@ -119,14 +126,31 @@ private struct SourceTextEditor: View {
 
 private struct PreviewPane: View {
     @Environment(EditorState.self) private var state
+    @Environment(VaultState.self) private var vault
     @State private var renderedHTML: String = ""
 
     var body: some View {
         PreviewWebView(renderedHTML: renderedHTML)
-            .onAppear { renderedHTML = MarkdownRenderer.render(state.content) }
+            .onAppear { renderedHTML = render(state.content) }
             .onChange(of: state.content) { _, newValue in
-                renderedHTML = MarkdownRenderer.render(newValue)
+                renderedHTML = render(newValue)
             }
+    }
+
+    private func render(_ markdown: String) -> String {
+        let baseDirectory: URL?
+        if let vaultPath = UserDefaults.standard.string(forKey: "vaultPath") {
+            baseDirectory = URL(fileURLWithPath: vaultPath)
+        } else {
+            baseDirectory = state.fileURL?.deletingLastPathComponent()
+        }
+        return MarkdownRenderer.render(
+            markdown,
+            wikiLinkResolver: { rawTarget in
+                vault.resolveWikiLinkTargetPath(forRawTarget: rawTarget)
+            },
+            baseDirectory: baseDirectory
+        )
     }
 }
 
@@ -169,5 +193,6 @@ private struct StatusBar: View {
         onMakeSkill: {}
     )
     .environment(EditorState())
+    .environment(VaultState())
     .frame(width: 700, height: 500)
 }

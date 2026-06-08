@@ -17,6 +17,10 @@ final class EditorState {
     var viewMode: ViewMode = .source
     var showFormatBar: Bool = true
     var showCreateSkillSheet: Bool = false
+    var showGraphSheet: Bool = false
+
+    var lastIOErrorMessage: String? = nil
+    var showIOErrorAlert: Bool = false
 
     private var autosaveTask: Task<Void, Never>?
 
@@ -37,12 +41,17 @@ final class EditorState {
 
     func open(url: URL) {
         do {
-            let text = try String(contentsOf: url, encoding: .utf8)
+            let text = try withSecurityScopedAccess(url) {
+                try String(contentsOf: url, encoding: .utf8)
+            }
             content = text
             fileURL = url
             isDirty = false
             lastSavedAt = Date()
         } catch {
+            let message = "Could not open file:\n\(url.path)\n\n\(error.localizedDescription)"
+            lastIOErrorMessage = message
+            showIOErrorAlert = true
             print("[EditorState] open failed for \(url.path): \(error)")
         }
     }
@@ -61,10 +70,15 @@ final class EditorState {
     func save() {
         guard let url = fileURL else { return }
         do {
-            try content.write(to: url, atomically: true, encoding: .utf8)
+            try withSecurityScopedAccess(url) {
+                try content.write(to: url, atomically: true, encoding: .utf8)
+            }
             isDirty = false
             lastSavedAt = Date()
         } catch {
+            let message = "Could not save file:\n\(url.path)\n\n\(error.localizedDescription)"
+            lastIOErrorMessage = message
+            showIOErrorAlert = true
             print("[EditorState] save failed for \(url.path): \(error)")
         }
     }
@@ -85,4 +99,14 @@ final class EditorState {
             }
         }
     }
+}
+
+private func withSecurityScopedAccess<T>(_ url: URL, _ work: () throws -> T) rethrows -> T {
+    let didStart = url.startAccessingSecurityScopedResource()
+    defer {
+        if didStart {
+            url.stopAccessingSecurityScopedResource()
+        }
+    }
+    return try work()
 }

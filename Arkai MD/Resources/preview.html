@@ -15,13 +15,49 @@
             const FENCE_OPEN_MERMAID = /^[ \t]*`{3,}\s*mermaid\s*$/i;
             const FENCE_CLOSE = /^[ \t]*`{3,}\s*$/;
 
+            function resolveMermaidCandidate(candidate) {
+                if (!candidate) return null;
+
+                const candidates = [];
+                candidates.push(candidate);
+                if (candidate.default) candidates.push(candidate.default);
+                if (candidate.mermaid) candidates.push(candidate.mermaid);
+                if (candidate.mermaidAPI) candidates.push(candidate.mermaidAPI);
+
+                for (const c of candidates) {
+                    if (!c) continue;
+                    const hasInit = typeof c.initialize === 'function';
+                    const hasRun = typeof c.run === 'function' || typeof c.init === 'function';
+                    const hasRender = typeof c.render === 'function' || (c.mermaidAPI && typeof c.mermaidAPI.render === 'function');
+                    if (hasInit && (hasRender || hasRun)) {
+                        return c;
+                    }
+                }
+
+                return null;
+            }
+
+            function getMermaid() {
+                if (window.mermaid) return resolveMermaidCandidate(window.mermaid);
+                if (window.__esbuild_esm_mermaid_nm) {
+                    return resolveMermaidCandidate(window.__esbuild_esm_mermaid_nm);
+                }
+                return null;
+            }
+
             const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            if (typeof mermaid !== 'undefined') {
-                mermaid.initialize({
-                    startOnLoad: false,
-                    theme: isDark ? 'dark' : 'default',
-                    securityLevel: 'strict'
-                });
+            const mermaidLib = getMermaid();
+            if (mermaidLib) {
+                window.mermaid = mermaidLib;
+                try {
+                    mermaidLib.initialize({
+                        startOnLoad: false,
+                        theme: isDark ? 'dark' : 'default',
+                        securityLevel: 'loose'
+                    });
+                } catch (e) {
+                    console.warn('mermaid initialize failed', e);
+                }
             } else {
                 console.warn('mermaid library not loaded');
             }
@@ -55,49 +91,216 @@
                 return out;
             }
 
-            async function renderDiagrams() {
-                if (typeof mermaid === 'undefined') return;
-                await renderExplicit();
-                await offerSmartDetections();
+            function normalizeMermaidSource(source) {
+                let s = (source || '').trim();
+                if (!s) return s;
+
+                s = s
+                    .replace(/[“”]/g, '"')
+                    .replace(/[‘’]/g, "'")
+                    .replace(/[‐‑‒–—−﹣－]/g, '-')
+                    // Fix pasted arrows like "- ->" / "- -->".
+                    .replace(/-\s*--?>/g, '-->');
+
+                // Avoid turning existing "-->" into "- -->" by protecting it first.
+                const arrowToken = '__MARKAI_ARROW__';
+                s = s.replace(/-->/g, arrowToken);
+                s = s.replace(/->/g, '-->');
+                s = s.replace(new RegExp(arrowToken, 'g'), '-->');
+
+                // Normalize spacing around arrows.
+                s = s.replace(/\s*-->\s*/g, ' --> ');
+
+                if (!s.includes('\n') && (s.match(/-->/g) || []).length > 1) {
+                    s = s.replace(/\]\s+(?=[A-Za-z0-9_])/g, ']\n  ');
+                }
+
+                return s;
             }
 
-            async function renderExplicit() {
-                const blocks = document.querySelectorAll('#content pre > code.language-mermaid, #content code.language-mermaid');
+            async function renderParagraphMermaid(mermaidLib) {
+                const paragraphs = Array.from(document.querySelectorAll('#content p'));
                 let i = 0;
-                for (const code of blocks) {
-                    const source = code.textContent;
-                    const id = 'mermaid-' + (i++);
-                    try {
-                        const { svg } = await mermaid.render(id, source);
-                        const container = document.createElement('div');
-                        container.className = 'diagram-container';
-                        container.innerHTML = svg;
-                        addToolbar(container);
-                        const parent = code.closest('pre') || code;
-                        parent.replaceWith(container);
-                    } catch (e) {
-                        console.error('mermaid render failed', e);
+
+                for (const p of paragraphs) {
+                    if (!p || p.dataset.mermaidRendered === 'true') continue;
+                    if (p.closest('pre, code, .diagram-container')) continue;
+
+                    const text = (p.textContent || '').trim();
+                    if (!text) continue;
+                    if (!looksLikeMermaid(text)) continue;
+
+                    const normalized = normalizeMermaidSource(text);
+                    if ((normalized.match(/-->/g) || []).length === 0) continue;
+
+                    const ok = await replaceCodeBlockWithMermaid(mermaidLib, p, normalized, 'p-' + (i++));
+                    if (ok) {
+                        p.dataset.mermaidRendered = 'true';
                     }
                 }
             }
 
-            async function offerSmartDetections() {
-                const codeBlocks = document.querySelectorAll('#content pre > code');
+            async function renderDiagrams() {
+                const mermaidLib = getMermaid();
+                if (!mermaidLib) return;
+                await renderExplicit(mermaidLib);
+                await offerSmartDetections(mermaidLib);
+                await offerConvertFlowTextToMermaid(mermaidLib);
+                await renderParagraphMermaid(mermaidLib);
+            }
+
+            async function renderExplicit(mermaidLib) {
+                const selector = [
+                    '#content pre > code.language-mermaid',
+                    '#content code.language-mermaid',
+                    '#content pre > code.lang-mermaid',
+                    '#content code.lang-mermaid',
+                    '#content pre > code.mermaid',
+                    '#content code.mermaid',
+                    '#content pre.language-mermaid > code',
+                    '#content pre.lang-mermaid > code',
+                    '#content pre.mermaid > code',
+                    '#content pre > code[class*="language-mermaid"]',
+                    '#content pre > code[class*="lang-mermaid"]'
+                ].join(', ');
+
+                const blocks = document.querySelectorAll(selector);
+                let i = 0;
+                for (const code of blocks) {
+                    const source = code.textContent;
+                    await replaceCodeBlockWithMermaid(mermaidLib, code, source, 'explicit-' + (i++));
+                }
+            }
+
+            async function renderMermaidSVG(mermaidLib, id, source) {
+                if (!mermaidLib) throw new Error('Mermaid not loaded');
+
+                if (typeof mermaidLib.render === 'function') {
+                    const result = mermaidLib.render(id, source);
+                    if (result && typeof result.then === 'function') {
+                        return await result;
+                    }
+                    if (typeof result === 'string') {
+                        return { svg: result };
+                    }
+                    if (result && result.svg) {
+                        return result;
+                    }
+                }
+
+                if (mermaidLib.mermaidAPI && typeof mermaidLib.mermaidAPI.render === 'function') {
+                    const result = mermaidLib.mermaidAPI.render(id, source);
+                    if (result && typeof result.then === 'function') {
+                        return await result;
+                    }
+                    if (typeof result === 'string') {
+                        return { svg: result };
+                    }
+                    if (result && result.svg) {
+                        return result;
+                    }
+                }
+
+                const container = document.createElement('div');
+                container.className = 'mermaid';
+                container.textContent = source;
+                document.body.appendChild(container);
+
+                try {
+                    if (typeof mermaidLib.run === 'function') {
+                        await mermaidLib.run({ nodes: [container] });
+                    } else if (typeof mermaidLib.init === 'function') {
+                        mermaidLib.init(undefined, container);
+                    } else {
+                        throw new Error('Unsupported Mermaid API');
+                    }
+
+                    const svgEl = container.querySelector('svg');
+                    const svg = svgEl ? svgEl.outerHTML : null;
+                    if (!svg) throw new Error('No SVG produced');
+                    return { svg: svg };
+                } finally {
+                    container.remove();
+                }
+            }
+
+            async function replaceCodeBlockWithMermaid(mermaidLib, code, source, idSuffix) {
+                const id = 'mermaid-' + idSuffix;
+                const parent = code.closest('pre') || code;
+                const normalized = normalizeMermaidSource(source);
+
+                try {
+                    const { svg } = await renderMermaidSVG(mermaidLib, id, normalized);
+
+                    const container = document.createElement('div');
+                    container.className = 'diagram-container';
+                    container.innerHTML = svg;
+                    addToolbar(container);
+                    parent.replaceWith(container);
+                    return true;
+                } catch (e) {
+                    console.error('mermaid render failed', e);
+
+                    const errorBox = document.createElement('div');
+                    errorBox.className = 'diagram-container';
+
+                    const title = document.createElement('div');
+                    title.style.color = 'var(--muted)';
+                    title.style.fontSize = '12px';
+                    title.textContent = 'Mermaid render failed';
+
+                    const details = document.createElement('pre');
+                    details.style.whiteSpace = 'pre-wrap';
+                    details.style.margin = '8px 0 0 0';
+                    details.style.fontSize = '12px';
+                    details.textContent = String((e && e.message) ? e.message : e);
+
+                    const src = document.createElement('pre');
+                    src.style.whiteSpace = 'pre-wrap';
+                    src.style.margin = '8px 0 0 0';
+                    src.style.fontSize = '11px';
+                    src.style.opacity = '0.85';
+                    src.textContent = normalized;
+
+                    errorBox.appendChild(title);
+                    errorBox.appendChild(details);
+                    errorBox.appendChild(src);
+                    parent.replaceWith(errorBox);
+                    return false;
+                }
+            }
+
+            async function offerSmartDetections(mermaidLib) {
+                const codeBlocks = Array.from(document.querySelectorAll('#content pre > code'));
                 console.log('[mARKAI] smart-scan: ' + codeBlocks.length + ' code blocks');
-                codeBlocks.forEach((code, idx) => {
-                    if (code.classList.contains('language-mermaid')) return;
+
+                let idx = 0;
+                for (const code of codeBlocks) {
+                    if (code.classList.contains('language-mermaid') || code.classList.contains('lang-mermaid') || code.classList.contains('mermaid')) {
+                        idx++;
+                        continue;
+                    }
+
                     const text = code.textContent;
                     const embedded = extractEmbedded(text);
                     const detected = embedded.length === 0 && looksLikeMermaid(text);
                     console.log('[mARKAI] block #' + idx + ' class="' + (code.className || '') + '" embedded=' + embedded.length + ' detected=' + detected);
+
                     if (embedded.length > 0) {
                         addOfferButton(code, embedded, embedded.length === 1 ? 'embedded' : 'embedded-multi');
-                        return;
+                        idx++;
+                        continue;
                     }
+
                     if (detected) {
-                        addOfferButton(code, [text.trim()], 'detected');
+                        const ok = await replaceCodeBlockWithMermaid(mermaidLib, code, text.trim(), 'smart-' + idx);
+                        if (!ok) {
+                            addOfferButton(code, [text.trim()], 'detected');
+                        }
                     }
-                });
+
+                    idx++;
+                }
             }
 
             function addOfferButton(code, sources, kind) {
@@ -146,6 +349,96 @@
                 };
                 overlay.appendChild(btn);
                 wrapper.appendChild(overlay);
+            }
+
+            async function offerConvertFlowTextToMermaid(mermaidLib) {
+                const codeBlocks = Array.from(document.querySelectorAll('#content pre > code'));
+
+                for (const code of codeBlocks) {
+                    const pre = code.closest('pre');
+                    if (!pre) continue;
+                    if (pre.dataset.flowToMermaidOffered === 'true') continue;
+
+                    const cls = ((code.className || '') + ' ' + (pre.className || '')).toLowerCase();
+                    const isTextFence = cls.includes('language-text') || cls.includes('lang-text') || cls.includes('language-txt') || cls.includes('lang-txt');
+                    if (!isTextFence) continue;
+
+                    const raw = (code.textContent || '').trim();
+                    if (!raw) continue;
+                    if (!raw.includes('↓') && !raw.includes('->') && !raw.includes('-->') && !raw.includes('→')) continue;
+
+                    const steps = extractFlowSteps(raw);
+                    if (steps.length < 2) continue;
+
+                    pre.dataset.flowToMermaidOffered = 'true';
+
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'detect-wrapper';
+                    pre.parentNode.insertBefore(wrapper, pre);
+                    wrapper.appendChild(pre);
+
+                    const overlay = document.createElement('div');
+                    overlay.className = 'mermaid-detect-toolbar';
+
+                    const btn = document.createElement('button');
+                    btn.textContent = 'Convert to Mermaid';
+                    btn.title = 'Convert this flow text to a Mermaid flowchart (Preview only)';
+                    btn.onclick = async () => {
+                        btn.disabled = true;
+                        btn.textContent = 'Converting…';
+
+                        const source = buildMermaidFromSteps(steps);
+                        const ok = await replaceCodeBlockWithMermaid(mermaidLib, code, source, 'flow-' + Math.random().toString(36).slice(2, 10));
+                        if (ok) {
+                            overlay.remove();
+                        } else {
+                            btn.disabled = false;
+                            btn.textContent = 'Convert to Mermaid';
+                        }
+                    };
+
+                    overlay.appendChild(btn);
+                    wrapper.appendChild(overlay);
+                }
+
+                function extractFlowSteps(text) {
+                    const lines = (text || '').split('\n').map(l => l.trim()).filter(Boolean);
+                    const steps = [];
+
+                    for (const line of lines) {
+                        if (line === '↓' || line === '→' || line === '➡' || line === '=>' || line === '->' || line === '-->' || line === '→') {
+                            continue;
+                        }
+                        if (/^(?:[-–—=]*>+|v+|↓+)$/i.test(line)) {
+                            continue;
+                        }
+                        steps.push(line);
+                    }
+
+                    return steps;
+                }
+
+                function buildMermaidFromSteps(steps) {
+                    function sanitizeLabel(s) {
+                        return String(s)
+                            .replace(/[“”]/g, '"')
+                            .replace(/[‘’]/g, "'")
+                            .replace(/"/g, "'")
+                            .replace(/[\[\]]/g, ' ')
+                            .replace(/\s+/g, ' ')
+                            .trim();
+                    }
+
+                    let out = 'flowchart TD\n';
+                    for (let i = 0; i < steps.length; i++) {
+                        const id = 'N' + i;
+                        out += '  ' + id + '["' + sanitizeLabel(steps[i]) + '"]\n';
+                    }
+                    for (let i = 0; i < steps.length - 1; i++) {
+                        out += '  N' + i + ' --> N' + (i + 1) + '\n';
+                    }
+                    return out;
+                }
             }
 
             function addToolbar(container) {
@@ -237,8 +530,312 @@
                 });
             }
 
+            function enhanceHexColors() {
+                const root = document.getElementById('content');
+                if (!root) return;
+
+                const HEX = /#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b/g;
+                const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+
+                const nodes = [];
+                while (walker.nextNode()) {
+                    const node = walker.currentNode;
+                    if (!node || !node.parentElement) continue;
+
+                    const parent = node.parentElement;
+                    if (parent.closest('a, svg, .diagram-container')) continue;
+
+                    const codeAncestor = parent.closest('code, pre');
+                    if (codeAncestor) {
+                        const className = (codeAncestor.className || '').toLowerCase();
+                        if (className.includes('mermaid')) continue;
+                        if (looksLikeMermaid(codeAncestor.textContent || '')) continue;
+                    }
+
+                    if (HEX.test(node.nodeValue || '')) {
+                        nodes.push(node);
+                    }
+                }
+
+                function normalizeHex(s) {
+                    const raw = s.replace('#', '');
+                    if (raw.length === 3) {
+                        return '#' + raw.split('').map(ch => ch + ch).join('');
+                    }
+                    if (raw.length === 6) {
+                        return '#' + raw;
+                    }
+                    if (raw.length === 8) {
+                        return '#' + raw.slice(0, 6);
+                    }
+                    return null;
+                }
+
+                for (const node of nodes) {
+                    const text = node.nodeValue || '';
+                    HEX.lastIndex = 0;
+                    let match;
+                    let last = 0;
+
+                    const frag = document.createDocumentFragment();
+                    while ((match = HEX.exec(text)) !== null) {
+                        const full = match[0];
+                        const start = match.index;
+                        if (start > last) {
+                            frag.appendChild(document.createTextNode(text.slice(last, start)));
+                        }
+
+                        const normalized = normalizeHex(full);
+                        if (normalized) {
+                            const inCode = !!(node.parentElement && node.parentElement.closest('pre, code'));
+
+                            const chip = document.createElement('span');
+                            chip.className = inCode ? 'hex-chip hex-chip-code' : 'hex-chip';
+                            chip.setAttribute('data-hex', normalized);
+
+                            const swatch = document.createElement('span');
+                            swatch.className = 'hex-swatch';
+                            swatch.style.background = normalized;
+
+                            const label = document.createElement('span');
+                            label.className = 'hex-label';
+                            label.textContent = full;
+
+                            chip.appendChild(swatch);
+                            chip.appendChild(label);
+                            frag.appendChild(chip);
+                        } else {
+                            frag.appendChild(document.createTextNode(full));
+                        }
+
+                        last = start + full.length;
+                    }
+
+                    if (last < text.length) {
+                        frag.appendChild(document.createTextNode(text.slice(last)));
+                    }
+
+                    node.parentNode.replaceChild(frag, node);
+                }
+            }
+
+            function renderMarkaiBlocks() {
+                const root = document.getElementById('content');
+                if (!root) return;
+
+                const blocks = Array.from(document.querySelectorAll('#content pre > code'));
+
+                function languageTokenFor(code) {
+                    const cls = ((code.className || '') + ' ' + (code.parentElement ? (code.parentElement.className || '') : '')).trim();
+                    const parts = cls.split(/\s+/).map(s => s.trim()).filter(Boolean);
+                    for (const part of parts) {
+                        const lower = part.toLowerCase();
+                        if (lower.startsWith('language-')) return lower.substring('language-'.length);
+                        if (lower.startsWith('lang-')) return lower.substring('lang-'.length);
+                    }
+                    return null;
+                }
+
+                for (const code of blocks) {
+                    const lang = languageTokenFor(code);
+                    if (!lang) continue;
+                    if (!lang.startsWith('markai-')) continue;
+
+                    const text = (code.textContent || '').trim();
+                    const pre = code.closest('pre');
+                    const replaceTarget = pre || code;
+
+                    switch (lang) {
+                    case 'markai-palette':
+                        replaceTarget.replaceWith(renderPaletteBlock(text));
+                        break;
+                    case 'markai-buttons':
+                        replaceTarget.replaceWith(renderButtonsBlock(text));
+                        break;
+                    case 'markai-spacing':
+                        replaceTarget.replaceWith(renderSpacingBlock(text));
+                        break;
+                    default:
+                        break;
+                    }
+                }
+
+                function renderPaletteBlock(text) {
+                    const el = document.createElement('div');
+                    el.className = 'mk-block mk-palette';
+
+                    const title = document.createElement('div');
+                    title.className = 'mk-title';
+                    title.textContent = 'Palette';
+                    el.appendChild(title);
+
+                    const items = [];
+                    const lines = (text || '').split('\n');
+                    const re = /--([a-zA-Z0-9_-]+)\s*:\s*(#[0-9a-fA-F]{3}|#[0-9a-fA-F]{6}|#[0-9a-fA-F]{8})\s*;?/;
+                    for (const line of lines) {
+                        const m = line.match(re);
+                        if (!m) continue;
+                        items.push({ token: '--' + m[1], hex: m[2] });
+                    }
+
+                    if (items.length === 0) {
+                        const hint = document.createElement('div');
+                        hint.className = 'mk-hint';
+                        hint.textContent = 'Add CSS vars like: --brand: #245A9E;';
+                        el.appendChild(hint);
+                        return el;
+                    }
+
+                    const grid = document.createElement('div');
+                    grid.className = 'mk-grid';
+
+                    for (const item of items) {
+                        const card = document.createElement('div');
+                        card.className = 'mk-card';
+
+                        const sw = document.createElement('div');
+                        sw.className = 'mk-swatch';
+                        sw.style.background = item.hex;
+
+                        const meta = document.createElement('div');
+                        meta.className = 'mk-meta';
+
+                        const token = document.createElement('div');
+                        token.className = 'mk-token';
+                        token.textContent = item.token;
+
+                        const hex = document.createElement('div');
+                        hex.className = 'mk-hex';
+                        hex.textContent = item.hex;
+
+                        meta.appendChild(token);
+                        meta.appendChild(hex);
+
+                        card.appendChild(sw);
+                        card.appendChild(meta);
+                        grid.appendChild(card);
+                    }
+
+                    el.appendChild(grid);
+                    return el;
+                }
+
+                function renderButtonsBlock(text) {
+                    const el = document.createElement('div');
+                    el.className = 'mk-block mk-buttons';
+
+                    const title = document.createElement('div');
+                    title.className = 'mk-title';
+                    title.textContent = 'Buttons';
+                    el.appendChild(title);
+
+                    const lines = (text || '').split('\n').map(l => l.trim()).filter(Boolean);
+                    const items = [];
+
+                    for (const line of lines) {
+                        const parts = line.split('|').map(p => p.trim()).filter(Boolean);
+                        if (parts.length === 0) continue;
+
+                        const label = parts[0] || 'Button';
+                        const hex = (parts[1] && parts[1].startsWith('#')) ? parts[1] : '#245A9E';
+                        const caption = parts[2] || label;
+                        items.push({ label, hex, caption });
+                    }
+
+                    if (items.length === 0) {
+                        items.push({ label: 'Primary', hex: '#245A9E', caption: 'Primary' });
+                        items.push({ label: 'Secondary', hex: '#E85A24', caption: 'Secondary' });
+                    }
+
+                    const row = document.createElement('div');
+                    row.className = 'mk-row';
+
+                    for (const item of items) {
+                        const wrapper = document.createElement('div');
+                        wrapper.className = 'mk-btn-wrap';
+
+                        const btn = document.createElement('button');
+                        btn.className = 'mk-btn';
+                        btn.type = 'button';
+                        btn.style.setProperty('--mk-btn-bg', item.hex);
+                        btn.textContent = item.caption;
+
+                        const meta = document.createElement('div');
+                        meta.className = 'mk-btn-meta';
+                        meta.textContent = item.label + ' · ' + item.hex;
+
+                        wrapper.appendChild(btn);
+                        wrapper.appendChild(meta);
+                        row.appendChild(wrapper);
+                    }
+
+                    el.appendChild(row);
+                    return el;
+                }
+
+                function renderSpacingBlock(text) {
+                    const el = document.createElement('div');
+                    el.className = 'mk-block mk-spacing';
+
+                    const title = document.createElement('div');
+                    title.className = 'mk-title';
+                    title.textContent = 'Spacing Scale';
+                    el.appendChild(title);
+
+                    const lines = (text || '').split('\n').map(l => l.trim()).filter(Boolean);
+                    const items = [];
+
+                    for (const line of lines) {
+                        const parts = line.split('|').map(p => p.trim()).filter(Boolean);
+                        const valueRaw = parts[0] || '';
+                        const value = parseFloat(valueRaw);
+                        if (!isFinite(value)) continue;
+                        items.push({ value, label: parts[1] || (value + 'px') });
+                    }
+
+                    if (items.length === 0) {
+                        items.push({ value: 4, label: 'xs (4px)' });
+                        items.push({ value: 16, label: 'md (16px)' });
+                    }
+
+                    const list = document.createElement('div');
+                    list.className = 'mk-list';
+
+                    for (const item of items) {
+                        const row = document.createElement('div');
+                        row.className = 'mk-space-row';
+
+                        const label = document.createElement('div');
+                        label.className = 'mk-space-label';
+                        label.textContent = item.label;
+
+                        const barWrap = document.createElement('div');
+                        barWrap.className = 'mk-space-barwrap';
+
+                        const bar = document.createElement('div');
+                        bar.className = 'mk-space-bar';
+                        bar.style.width = Math.max(2, item.value) + 'px';
+
+                        const px = document.createElement('div');
+                        px.className = 'mk-space-px';
+                        px.textContent = item.value + 'px';
+
+                        barWrap.appendChild(bar);
+                        row.appendChild(label);
+                        row.appendChild(barWrap);
+                        row.appendChild(px);
+                        list.appendChild(row);
+                    }
+
+                    el.appendChild(list);
+                    return el;
+                }
+            }
+
             window.__renderMarkdown = function (html) {
                 document.getElementById('content').innerHTML = html;
+                renderMarkaiBlocks();
+                enhanceHexColors();
                 renderDiagrams();
             };
 

@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let state = EditorState()
+    let vault = VaultState()
     let editor = EditorController()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -87,7 +88,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls {
             if url.isFileURL {
-                state.open(url: url)
+                openFileInWorkspace(url)
             } else if url.scheme == "arkaimd" {
                 handleCustomURL(url)
             }
@@ -95,8 +96,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func application(_ sender: NSApplication, openFile filename: String) -> Bool {
-        let url = URL(fileURLWithPath: filename)
-        state.open(url: url)
+        openFileInWorkspace(URL(fileURLWithPath: filename))
         return true
     }
 
@@ -105,7 +105,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
               let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
               let path = components.queryItems?.first(where: { $0.name == "path" })?.value
         else { return }
-        state.open(url: URL(fileURLWithPath: path))
+        openFileInWorkspace(URL(fileURLWithPath: path))
+    }
+
+    private func openFileInWorkspace(_ url: URL) {
+        let parent = url.deletingLastPathComponent()
+        if vault.vaultURL != parent {
+            vault.setVault(url: parent)
+        }
+        vault.selectedNoteURL = url
+        state.open(url: url)
     }
 
     func openDocument() {
@@ -117,7 +126,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             panel.allowedContentTypes = [mdType, .plainText]
         }
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        state.open(url: url)
+        openFileInWorkspace(url)
     }
 
     func saveDocument() {

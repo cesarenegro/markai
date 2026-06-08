@@ -7,5 +7,6 @@ import SwiftUI
         onMakeSkill: {}
     )
     .environment(EditorState())
+    .environment(VaultState())
     .frame(width: 700, height: 500)
 }
